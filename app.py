@@ -75,6 +75,8 @@ def handle_userinput(user_question):
             st.write(bot_template.replace(
                 "{{MSG}}", message.content), unsafe_allow_html=True)
 
+def formatLLMSelectBox(val):
+    return val['value']
 
 def main():
     load_dotenv()
@@ -96,12 +98,11 @@ def main():
     with st.sidebar:
 
         st.subheader("Select the LLM")
-        llm_select = st.selectbox('Available LLM', llms, index=None, key='selected_llm')
+        llm_select = st.selectbox('Available LLM', llms, index=None, key='selected_llm', format_func= formatLLMSelectBox)
 
         st.subheader("Your documents")
-        pdf_files = st.file_uploader(
-            "Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
-        if st.button("Process"):
+        pdf_files = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
+        if st.button("Process", disabled = (st.session_state['selected_llm'] == None)):
             with st.spinner("Processing"):
                 # get pdf text
                 docs = get_pdf_docs(pdf_files)
