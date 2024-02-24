@@ -1,39 +1,47 @@
 import streamlit as st
 from dotenv import load_dotenv
-from PyPDF2 import PdfReader
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chat_models import ChatOpenAI
+from langchain_community.document_loaders import PyPDFLoader
+#from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+#from langchain_community.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
+from langchain_openai import OpenAIEmbeddings
+#from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import Chroma
+#from langchain_community.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from htmlTemplates import css, bot_template, user_template
-from langchain.llms import HuggingFaceHub
+from langchain_community.llms import HuggingFaceHub
+from tempfile import NamedTemporaryFile
 
-def get_pdf_text(pdf_docs):
-    text = ""
+def get_pdf_docs(pdf_docs):
+    docs = []
     for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-    return text
+        with NamedTemporaryFile(dir='.', suffix='.csv') as f:
+            f.write(pdf.getbuffer())
+            loader = PyPDFLoader(f.name)
+            docs.extend(loader.load_and_split())
+    return docs
 
 
-def get_text_chunks(text):
-    text_splitter = CharacterTextSplitter(
-        separator="\n",
-        chunk_size=1000,
-        chunk_overlap=200,
-        length_function=len
-    )
-    chunks = text_splitter.split_text(text)
+def get_text_chunks(docs):
+    #text_splitter = CharacterTextSplitter(
+    #    separator="\n",
+    #    chunk_size=1000,
+    #    chunk_overlap=200,
+    #    length_function=len
+    #)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = text_splitter.split_documents(docs)
     return chunks
 
 
 def get_vectorstore(text_chunks):
-    embeddings = OpenAIEmbeddings()
+    embeddings_model = OpenAIEmbeddings()
     # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
-    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+    #vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+    vectorstore = Chroma.from_documents(documents=text_chunks, embedding=embeddings_model)
     return vectorstore
 
 
@@ -82,15 +90,15 @@ def main():
 
     with st.sidebar:
         st.subheader("Your documents")
-        pdf_docs = st.file_uploader(
+        pdf_files = st.file_uploader(
             "Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
         if st.button("Process"):
             with st.spinner("Processing"):
                 # get pdf text
-                raw_text = get_pdf_text(pdf_docs)
+                docs = get_pdf_docs(pdf_files)
 
                 # get the text chunks
-                text_chunks = get_text_chunks(raw_text)
+                text_chunks = get_text_chunks(docs)
 
                 # create vector store
                 vectorstore = get_vectorstore(text_chunks)
