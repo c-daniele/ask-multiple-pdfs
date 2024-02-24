@@ -9,11 +9,14 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 #from langchain_community.chat_models import ChatOpenAI
 from langchain_openai import ChatOpenAI
+from langchain_community.llms import Bedrock
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from htmlTemplates import css, bot_template, user_template
 from langchain_community.llms import HuggingFaceHub
 from tempfile import NamedTemporaryFile
+#import boto3
+from libs import *
 
 def get_pdf_docs(pdf_docs):
     docs = []
@@ -46,13 +49,14 @@ def get_vectorstore(text_chunks):
 
 
 def get_conversation_chain(vectorstore):
-    llm = ChatOpenAI()
-    # llm = HuggingFaceHub(repo_id="google/flan-t5-xxl", model_kwargs={"temperature":0.5, "max_length":512})
+    #myLLM = create_llm("amazon.titan-text-express-v1")
+    print(f"SELECTED MODEL: {st.session_state.selected_llm['value']}")
+    
+    myLLM = create_llm(model_name=st.session_state.selected_llm['value'])
 
-    memory = ConversationBufferMemory(
-        memory_key='chat_history', return_messages=True)
+    memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     conversation_chain = ConversationalRetrievalChain.from_llm(
-        llm=llm,
+        llm=myLLM,
         retriever=vectorstore.as_retriever(),
         memory=memory
     )
@@ -60,7 +64,7 @@ def get_conversation_chain(vectorstore):
 
 
 def handle_userinput(user_question):
-    response = st.session_state.conversation({'question': user_question})
+    response = st.session_state.conversation.invoke({'question': user_question})
     st.session_state.chat_history = response['chat_history']
 
     for i, message in enumerate(st.session_state.chat_history):
@@ -74,6 +78,7 @@ def handle_userinput(user_question):
 
 def main():
     load_dotenv()
+    llms = getAvailableLLMs()
     st.set_page_config(page_title="Chat with multiple PDFs",
                        page_icon=":books:")
     st.write(css, unsafe_allow_html=True)
@@ -89,6 +94,10 @@ def main():
         handle_userinput(user_question)
 
     with st.sidebar:
+
+        st.subheader("Select the LLM")
+        llm_select = st.selectbox('Available LLM', llms, index=None, key='selected_llm')
+
         st.subheader("Your documents")
         pdf_files = st.file_uploader(
             "Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
