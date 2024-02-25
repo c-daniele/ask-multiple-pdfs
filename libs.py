@@ -72,6 +72,17 @@ def getAvailableLLMs():
     retVal=[]
     for i in fm['modelSummaries']:
 
+        # discard ambedding and dummy model returned from the Bedrock API
+        if(
+            (i['modelId'].find(":") > 0)
+            or (i['modelId'].find("embed-") > 0)
+            or (i['modelId'].find("stable-diffusion") > 0)
+            or i['modelId'] in ['meta.llama2-13b-v1', 'meta.llama2-70b-v1', 'amazon.titan-image-generator-v1']
+        ):
+            continue
+        elif():
+            continue
+
         label=i['modelName']
         if (i['modelId'] == 'anthropic.claude-v1'):
             label = 'Claude V1'

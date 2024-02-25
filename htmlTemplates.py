@@ -1,3 +1,12 @@
+import base64
+
+def img_to_b64(img_path):
+    file_ = open(img_path, "rb")
+    contents = file_.read()
+    b64_data = base64.b64encode(contents).decode("utf-8")
+    file_.close()
+    return b64_data
+
 css = '''
 <style>
 .chat-message {
@@ -25,20 +34,20 @@ css = '''
 }
 '''
 
-bot_template = '''
+bot_template = f'''
 <div class="chat-message bot">
     <div class="avatar">
-        <img src="https://i.ibb.co/cN0nmSj/Screenshot-2023-05-28-at-02-37-21.png" style="max-height: 78px; max-width: 78px; border-radius: 50%; object-fit: cover;">
+        <img src="data:image/png;base64,{img_to_b64("resources/android.png")}" style="max-height: 78px; max-width: 78px; border-radius: 50%; object-fit: cover;">
     </div>
-    <div class="message">{{MSG}}</div>
+    <div class="message">[[MSG]]</div>
 </div>
 '''
 
-user_template = '''
+user_template = f'''
 <div class="chat-message user">
     <div class="avatar">
-        <img src="https://i.ibb.co/rdZC7LZ/Photo-logo-1.png">
+        <img src="data:image/png;base64,{img_to_b64("resources/human.png")}" alt="human" style="max-height: 78px; max-width: 78px; border-radius: 50%; object-fit: cover;" />
     </div>    
-    <div class="message">{{MSG}}</div>
+    <div class="message">[[MSG]]</div>
 </div>
 '''

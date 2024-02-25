@@ -12,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from langchain_community.llms import Bedrock
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
+from langchain.chains import ConversationChain
 from htmlTemplates import css, bot_template, user_template
 from langchain_community.llms import HuggingFaceHub
 from tempfile import NamedTemporaryFile
@@ -50,9 +51,14 @@ def get_vectorstore(text_chunks):
 
 def get_conversation_chain(vectorstore):
     #myLLM = create_llm("amazon.titan-text-express-v1")
-    print(f"SELECTED MODEL: {st.session_state.selected_llm['value']}")
-    
-    myLLM = create_llm(model_name=st.session_state.selected_llm['value'])
+
+    if ('myLLM' in st.session_state and st.session_state.myLLM != None):
+        print(f"MODEL FOUND: {st.session_state.myLLM}")
+        myLLM = st.session_state.myLLM
+    else:
+        print(f"SELECTED MODEL: {st.session_state.selected_llm['value']}")
+        myLLM = create_llm(model_name=st.session_state.selected_llm['value'])
+        st.session_state.myLLM = myLLM
 
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     conversation_chain = ConversationalRetrievalChain.from_llm(
@@ -65,18 +71,22 @@ def get_conversation_chain(vectorstore):
 
 def handle_userinput(user_question):
     response = st.session_state.conversation.invoke({'question': user_question})
+    #print(response)
     st.session_state.chat_history = response['chat_history']
 
     for i, message in enumerate(st.session_state.chat_history):
         if i % 2 == 0:
             st.write(user_template.replace(
-                "{{MSG}}", message.content), unsafe_allow_html=True)
+                "[[MSG]]", message.content), unsafe_allow_html=True)
         else:
             st.write(bot_template.replace(
-                "{{MSG}}", message.content), unsafe_allow_html=True)
+                "[[MSG]]", message.content), unsafe_allow_html=True)
 
-def formatLLMSelectBox(val):
+def format_LLM_select_box(val):
     return val['value']
+
+def model_selector_on_change():
+    st.session_state.conversation = None
 
 def main():
     load_dotenv()
@@ -90,19 +100,14 @@ def main():
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
 
-    st.header("Chat with multiple PDFs :books:")
-    user_question = st.text_input("Ask a question about your documents:")
-    if user_question:
-        handle_userinput(user_question)
-
     with st.sidebar:
 
         st.subheader("Select the LLM")
-        llm_select = st.selectbox('Available LLM', llms, index=None, key='selected_llm', format_func= formatLLMSelectBox)
+        st.selectbox('Available LLM', llms, index=None, key='selected_llm', format_func=format_LLM_select_box, on_change=model_selector_on_change)
 
         st.subheader("Your documents")
         pdf_files = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
-        if st.button("Process", disabled = (st.session_state['selected_llm'] == None)):
+        if st.button("Process", disabled = ((st.session_state['selected_llm'] == None))):
             with st.spinner("Processing"):
                 # get pdf text
                 docs = get_pdf_docs(pdf_files)
@@ -116,6 +121,18 @@ def main():
                 # create conversation chain
                 st.session_state.conversation = get_conversation_chain(
                     vectorstore)
+                
+        #elif(llm_select):
+        #    st.session_state.conversation = get_conversation_chain(None)
+
+    if (('conversation' in st.session_state and st.session_state['conversation'] != None)):
+        st.header("Chat with multiple PDFs :books:")
+        user_question = st.text_input("Ask a question about your documents:")
+        if user_question:
+            handle_userinput(user_question)
+    else:
+        st.header("Please select the Model and process the PDF Knowledge Base")
+
 
 
 if __name__ == '__main__':
