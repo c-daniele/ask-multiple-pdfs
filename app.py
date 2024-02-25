@@ -3,18 +3,14 @@ from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 #from langchain.text_splitter import CharacterTextSplitter
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-#from langchain_community.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
-from langchain_openai import OpenAIEmbeddings
 #from langchain_community.vectorstores import FAISS
 from langchain_community.vectorstores import Chroma
 #from langchain_community.chat_models import ChatOpenAI
-from langchain_openai import ChatOpenAI
 from langchain_community.llms import Bedrock
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain.chains import ConversationChain
 from htmlTemplates import css, bot_template, user_template
-from langchain_community.llms import HuggingFaceHub
 from tempfile import NamedTemporaryFile
 #import boto3
 from libs import *
@@ -42,7 +38,7 @@ def get_text_chunks(docs):
 
 
 def get_vectorstore(text_chunks):
-    embeddings_model = OpenAIEmbeddings()
+    embeddings_model = create_embedding_model(st.session_state.selected_embedding)
     # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
     #vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     vectorstore = Chroma.from_documents(documents=text_chunks, embedding=embeddings_model)
@@ -56,8 +52,8 @@ def get_conversation_chain(vectorstore):
         print(f"MODEL FOUND: {st.session_state.myLLM}")
         myLLM = st.session_state.myLLM
     else:
-        print(f"SELECTED MODEL: {st.session_state.selected_llm['value']}")
-        myLLM = create_llm(model_name=st.session_state.selected_llm['value'])
+        print(f"SELECTED MODEL: {st.session_state.selected_llm['model_id']}")
+        myLLM = create_llm(st.session_state.selected_llm)
         st.session_state.myLLM = myLLM
 
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
@@ -83,14 +79,15 @@ def handle_userinput(user_question):
                 "[[MSG]]", message.content), unsafe_allow_html=True)
 
 def format_LLM_select_box(val):
-    return val['value']
+    return val['label']
 
 def model_selector_on_change():
     st.session_state.conversation = None
 
 def main():
     load_dotenv()
-    llms = getAvailableLLMs()
+    llms = get_available_LLMs()
+    embeddings = get_embedding_models()
     st.set_page_config(page_title="Chat with multiple PDFs",
                        page_icon=":books:")
     st.write(css, unsafe_allow_html=True)
@@ -104,10 +101,13 @@ def main():
 
         st.subheader("Select the LLM")
         st.selectbox('Available LLM', llms, index=None, key='selected_llm', format_func=format_LLM_select_box, on_change=model_selector_on_change)
+        
+        st.subheader("Select the Embedding Model")
+        st.selectbox('Embedding Model', embeddings, index=None, key='selected_embedding', format_func=format_LLM_select_box, on_change=model_selector_on_change)
 
         st.subheader("Your documents")
         pdf_files = st.file_uploader("Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
-        if st.button("Process", disabled = ((st.session_state['selected_llm'] == None))):
+        if st.button("Process", disabled = ((st.session_state['selected_llm'] == None) or (st.session_state['selected_embedding'] == None))):
             with st.spinner("Processing"):
                 # get pdf text
                 docs = get_pdf_docs(pdf_files)
@@ -128,6 +128,8 @@ def main():
     if (('conversation' in st.session_state and st.session_state['conversation'] != None)):
         st.header("Chat with multiple PDFs :books:")
         user_question = st.text_input("Ask a question about your documents:")
+
+        # ie: "Who are the authors of the document?"
         if user_question:
             handle_userinput(user_question)
     else:
